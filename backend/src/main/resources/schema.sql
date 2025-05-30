@@ -3,18 +3,20 @@ CREATE SEQUENCE IF NOT EXISTS op_no_seq START 1;
 CREATE SEQUENCE IF NOT EXISTS reg_no_seq START 1;
 
 CREATE TABLE IF NOT EXISTS patients (
-    patient_id VARCHAR(10) PRIMARY KEY DEFAULT LPAD(NEXTVAL('patient_id_seq')::TEXT, 3, '0'),
-    photo BYTEA,
-    surname VARCHAR(50) NOT NULL,
-    name VARCHAR(50) NOT NULL,
-    father_name VARCHAR(50),
-    age INT CHECK (age >= 0),
-    blood_group VARCHAR(5),
-    gender VARCHAR(10),
-    aadhar_number VARCHAR(12) UNIQUE NOT NULL,
-    phone_number VARCHAR(15),
-    address TEXT,
-    total_visits INT DEFAULT 0
+    patient_id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    surname VARCHAR(255) NOT NULL,
+    father_name VARCHAR(255),
+    gender VARCHAR(255),
+    age INT,
+    address VARCHAR(255),
+    blood_group VARCHAR(255),
+    phone_number VARCHAR(255),
+    aadhar_number VARCHAR(255) NOT NULL UNIQUE,
+    photo VARCHAR(255),
+    total_visits INT DEFAULT 0,
+    op_no VARCHAR(255) UNIQUE,
+    reg_no VARCHAR(255) UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS visits (
