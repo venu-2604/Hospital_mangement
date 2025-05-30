@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://arogith-api.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 import { Patient, Visit, LabTest, DoctorAuth } from '../types';
 
