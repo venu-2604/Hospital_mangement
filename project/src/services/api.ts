@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://localhost:8082';
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8082';
 
 import { Patient, Visit, LabTest, DoctorAuth } from '../types';
 
