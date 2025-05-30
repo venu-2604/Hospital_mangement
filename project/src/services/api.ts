@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8082';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://arogith-api.onrender.com';
 
 import { Patient, Visit, LabTest, DoctorAuth } from '../types';
 
@@ -497,138 +497,14 @@ export const diagnoseServerConnectivity = async (): Promise<{isConnected: boolea
 // Update the fetchLabTestsByVisitId function to use the new diagnostics
 export const fetchLabTestsByVisitId = async (visitId: number | string, patientId?: string): Promise<LabTest[]> => {
   try {
-    if (!visitId) {
-      throw new Error("Visit ID is required to fetch lab tests");
+    const response = await fetch(`${API_BASE_URL}/api/labtests/visit/${visitId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
     }
-    
-    console.log(`Fetching lab tests for visit ${visitId}${patientId ? ` and patient ${patientId}` : ''}`);
-    
-    // Try different URL variations to handle potential server configurations
-    const urlVariations = [
-      `${API_BASE_URL}/api/labtests/visit/${visitId}`,
-      `${API_BASE_URL}/labtests/visit/${visitId}`,
-      `${API_BASE_URL}/visits/${visitId}/labtests`
-    ];
-    
-    // Add a timeout to the fetch to prevent hanging requests
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
-    let lastError: any = null;
-    
-    // Try each URL variation
-    for (const url of urlVariations) {
-      try {
-        console.log(`Trying endpoint: ${url}`);
-        
-        const response = await fetch(url, { 
-          signal: controller.signal,
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          }
-        });
-        
-        if (response.ok) {
-          // Clear the timeout if we get a successful response
-          clearTimeout(timeoutId);
-          
-          // Parse and return the data
-          const labTests = await response.json();
-          console.log(`Successfully retrieved ${labTests.length} lab tests for visit ${visitId} from ${url}`);
-          
-          // Post-process to ensure date fields are available
-          const processedTests = labTests.map((test: any) => {
-            // Make deep copy to avoid reference issues
-            const processedTest = { ...test };
-            
-            // Ensure all date fields are explicitly available
-            if (processedTest.test_given_at) {
-              processedTest.testGivenAt = String(processedTest.test_given_at);
-              console.log(`Test ${processedTest.test_id} - Explicit test_given_at: ${processedTest.test_given_at}`);
-            }
-            
-            if (processedTest.result_updated_at) {
-              processedTest.resultUpdatedAt = String(processedTest.result_updated_at);
-              console.log(`Test ${processedTest.test_id} - Explicit result_updated_at: ${processedTest.result_updated_at}`);
-            }
-            
-            return processedTest;
-          });
-          
-          return processedTests;
-        } else {
-          const errorText = `Server returned status ${response.status} for ${url}`;
-          console.warn(errorText);
-          lastError = new Error(errorText);
-        }
-      } catch (fetchError) {
-        console.warn(`Error with endpoint ${url}:`, fetchError);
-        lastError = fetchError;
-      }
-    }
-    
-    // Clear the timeout
-    clearTimeout(timeoutId);
-    
-    // If we have a patient ID, try an endpoint that uses that
-    if (patientId) {
-      try {
-        const patientUrl = `${API_BASE_URL}/api/labtests/patient/${patientId}/visit/${visitId}`;
-        console.log(`Trying patient-based endpoint: ${patientUrl}`);
-        
-        const patientResponse = await fetch(patientUrl);
-        if (patientResponse.ok) {
-          const data = await patientResponse.json();
-          console.log(`Retrieved ${data.length} lab tests using patient ID approach`);
-          return data;
-        }
-      } catch (patientError) {
-        console.warn('Patient-based approach failed:', patientError);
-      }
-    }
-    
-    // If all approaches fail, throw the last error
-    throw lastError || new Error('Failed to fetch lab tests from all attempted endpoints');
+    return await response.json();
   } catch (error) {
     console.error('Error fetching lab tests:', error);
-    
-    // Return a more informative error that can be displayed to the user
-    if (error instanceof Error) {
-      // Handle the specific "No static resource" error
-      if (error.message.includes('No static resource')) {
-        console.warn('Detected "No static resource" error - this indicates a URL format issue');
-        // Try one more approach with a different URL format
-        try {
-          console.log('Attempting final fallback with direct server URL...');
-          const response = await fetch(`http://localhost:8082/labtests/visit/${visitId}`);
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`Successfully retrieved ${data.length} lab tests using final fallback URL`);
-            return data;
-          }
-        } catch (fallbackError) {
-          console.error('Final fallback also failed:', fallbackError);
-        }
-        
-        throw new Error(`Server configuration issue: The API endpoints for lab tests cannot be accessed. Please check your server configuration.`);
-      }
-      
-      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        // Run diagnostics to provide a more specific error message
-        try {
-          const diagnostics = await diagnoseServerConnectivity();
-          throw new Error(`Network error: ${diagnostics.details}`);
-        } catch (diagError) {
-          // If diagnostics also fail, return a more generic but still helpful message
-          throw new Error(`Network error: Unable to connect to the server at ${API_BASE_URL}. Please check if the backend server is running on port 8082.`);
-        }
-      }
-      
-      throw new Error(`Could not fetch lab tests: ${error.message}`);
-    }
-    throw new Error('An unexpected error occurred while fetching lab tests');
+    throw error;
   }
 };
 
