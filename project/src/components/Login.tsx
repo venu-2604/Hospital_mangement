@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { loginDoctor, checkLoggedInStatus, updateDoctorStatus } from '../services/api';
 
@@ -30,6 +31,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | React.ReactNode | null>(null);
+  const navigate = useNavigate();
 
   // Check if user is already logged in
   useEffect(() => {
@@ -61,8 +63,31 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           setErrorMessage(response.message || 'Authentication failed');
         }
       } else {
-        // Admin login not implemented yet
-        setErrorMessage('Admin login is not implemented yet');
+        // Hardcoded admin credentials (matches `src/admin/context/AuthContext.tsx`)
+        const adminId = doctorId.trim().toLowerCase();
+        const adminPassword = password;
+
+        const isValidAdminId = adminId === 'admin@hospital.com' || adminId === 'admin';
+        const isValidAdminPassword = adminPassword === 'admin123';
+
+        if (isValidAdminId && isValidAdminPassword) {
+          localStorage.setItem(
+            'hospital_admin_user',
+            JSON.stringify({
+              id: '1',
+              firstName: 'Admin',
+              lastName: 'User',
+              email: 'admin@hospital.com',
+              role: 'admin',
+              joinDate: new Date().toISOString(),
+              status: 'active',
+            })
+          );
+          navigate('/admin/dashboard', { replace: true });
+          return;
+        }
+
+        setErrorMessage('Invalid admin credentials');
       }
     } catch (error) {
       console.error('Login error:', error);

@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Settings, LogOut, UserPlus, X, User, MessageCircle, AlarmClock } from 'lucide-react';
+import { Bell, Settings, LogOut, UserPlus, X, User, AlarmClock } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import { registerPatient, updateDoctorStatus, fetchActiveNurses } from '../services/api';
+import { registerPatient, updateDoctorStatus } from '../services/api';
 import type { DoctorAuth } from '../types';
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
 
 interface NavbarProps {
   onPatientUpdated?: () => void;
@@ -17,7 +15,6 @@ export function Navbar({ onPatientUpdated, onLogout, doctorInfo }: NavbarProps) 
   const [showAddPatient, setShowAddPatient] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showChat, setShowChat] = useState(false);
   const [notifications] = useState([
     { id: 1, message: "New test results available for John Smith", time: "5m ago" },
     { id: 2, message: "Appointment reminder: Emma Johnson at 2:30 PM", time: "10m ago" },
@@ -51,19 +48,6 @@ export function Navbar({ onPatientUpdated, onLogout, doctorInfo }: NavbarProps) 
   const [reminderNote, setReminderNote] = useState('');
   const [showReminderPopup, setShowReminderPopup] = useState(false);
   const [activeReminder, setActiveReminder] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState('');
-  const stompClientRef = React.useRef(null);
-  const [userType, setUserType] = useState(null); // 'doctor' or 'nurse'
-  const [userId, setUserId] = useState('');
-  const [otherId, setOtherId] = useState('');
-  const [chatSetupDone, setChatSetupDone] = useState(false);
-  const [chatConnectionStatus, setChatConnectionStatus] = useState('disconnected'); // 'connected', 'disconnected', 'error'
-  const [chatConnectionError, setChatConnectionError] = useState(null);
-  const [nurses, setNurses] = useState([]);
-  const [selectedNurse, setSelectedNurse] = useState(null);
-  const [isLoadingNurses, setIsLoadingNurses] = useState(false);
-  const [nurseError, setNurseError] = useState(null);
 
   // Save reminders to localStorage
   useEffect(() => {
@@ -223,117 +207,6 @@ export function Navbar({ onPatientUpdated, onLogout, doctorInfo }: NavbarProps) 
     }
   };
 
-  // Fetch active nurses when chat box opens
-  useEffect(() => {
-    const fetchNurses = async () => {
-      if (showChat) {
-        setIsLoadingNurses(true);
-        setNurseError(null);
-        try {
-          const response = await fetch('http://localhost:8082/api/nurses/active');
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          if (!data || data.length === 0) {
-            setNurseError('No active nurses available at the moment');
-          } else {
-            setNurses(data);
-          }
-          setSelectedNurse(null); // Reset selected nurse when opening chat
-        } catch (error) {
-          console.error('Error fetching nurses:', error);
-          setNurseError('Failed to load nurses. Please check your connection and try again.');
-        } finally {
-          setIsLoadingNurses(false);
-        }
-      }
-    };
-
-    fetchNurses();
-  }, [showChat]);
-
-  // Add refresh functionality for nurses list
-  const refreshNurses = async () => {
-    setIsLoadingNurses(true);
-    setNurseError(null);
-    try {
-      const response = await fetch('http://localhost:8082/api/nurses/active');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      if (!data || data.length === 0) {
-        setNurseError('No active nurses available at the moment');
-      } else {
-        setNurses(data);
-      }
-    } catch (error) {
-      console.error('Error refreshing nurses:', error);
-      setNurseError('Failed to refresh nurses list. Please check your connection and try again.');
-    } finally {
-      setIsLoadingNurses(false);
-    }
-  };
-
-  // Connect to WebSocket when a nurse is selected
-  useEffect(() => {
-    if (showChat && selectedNurse && !stompClientRef.current) {
-      setChatConnectionStatus('connecting');
-      setChatConnectionError(null);
-      const socket = new SockJS('http://192.168.1.100:8082/ws-chat');
-      const client = new Client({
-        webSocketFactory: () => socket,
-        reconnectDelay: 5000,
-        onConnect: () => {
-          setChatConnectionStatus('connected');
-          client.subscribe('/user/queue/messages', (message) => {
-            const msg = JSON.parse(message.body);
-            setChatMessages((prev) => [...prev, { ...msg, from: msg.from, to: msg.to, content: msg.content, timestamp: msg.timestamp }]);
-          });
-        },
-        onStompError: (frame) => {
-          setChatConnectionStatus('error');
-          setChatConnectionError(frame.headers['message'] || 'STOMP error');
-          console.error('STOMP error:', frame);
-        },
-        onWebSocketError: (event) => {
-          setChatConnectionStatus('error');
-          setChatConnectionError('WebSocket error');
-          console.error('WebSocket error:', event);
-        },
-        onWebSocketClose: () => {
-          setChatConnectionStatus('disconnected');
-        },
-      });
-      client.activate();
-      stompClientRef.current = client;
-    }
-    return () => {
-      if (!showChat && stompClientRef.current) {
-        stompClientRef.current.deactivate();
-        stompClientRef.current = null;
-      }
-    };
-  }, [showChat, selectedNurse]);
-
-  // Send chat message
-  function sendChatMessage(e) {
-    e.preventDefault();
-    if (!chatInput.trim() || !stompClientRef.current || chatConnectionStatus !== 'connected' || !selectedNurse) return;
-    const msg = {
-      from: doctorInfo?.doctorId || '',
-      to: selectedNurse.nurse_id,
-      content: chatInput,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    stompClientRef.current.publish({
-      destination: '/app/chat',
-      body: JSON.stringify(msg),
-    });
-    setChatMessages((prev) => [...prev, { ...msg }]);
-    setChatInput('');
-  }
 
   return (
     <nav className="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
@@ -623,123 +496,6 @@ export function Navbar({ onPatientUpdated, onLogout, doctorInfo }: NavbarProps) 
                       </div>
                     </form>
                   </div>
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
-
-            {/* Chat Button */}
-            <Dialog.Root open={showChat} onOpenChange={setShowChat}>
-              <Dialog.Trigger asChild>
-                <button
-                  className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Chat
-                </button>
-              </Dialog.Trigger>
-              <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-                <Dialog.Content className="fixed bottom-4 right-4 bg-white rounded-lg shadow-xl w-full max-w-md p-0 overflow-hidden flex flex-col" style={{ minHeight: '400px', maxHeight: '80vh' }}>
-                  <div className="flex items-center justify-between px-4 py-3 border-b">
-                    <span className="font-semibold text-lg">
-                      {selectedNurse ? `Chat with ${selectedNurse.name}` : 'Select a Nurse'}
-                    </span>
-                    <Dialog.Close className="text-gray-400 hover:text-gray-600">
-                      <X className="w-5 h-5" />
-                    </Dialog.Close>
-                  </div>
-
-                  {!selectedNurse ? (
-                    <div className="flex-1 p-4 overflow-y-auto">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium text-sm text-gray-700">Active Nurses:</h4>
-                        <button 
-                          onClick={refreshNurses}
-                          className="text-blue-500 hover:text-blue-600 text-sm flex items-center gap-1"
-                          disabled={isLoadingNurses}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          Refresh
-                        </button>
-                      </div>
-                      {isLoadingNurses ? (
-                        <div className="flex items-center justify-center h-32">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                        </div>
-                      ) : nurseError ? (
-                        <div className="text-red-500 text-center p-4">
-                          <p className="mb-2">{nurseError}</p>
-                          <button 
-                            onClick={refreshNurses}
-                            className="mt-2 text-blue-500 hover:text-blue-600 flex items-center justify-center gap-1"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            Try again
-                          </button>
-                        </div>
-                      ) : nurses.length === 0 ? (
-                        <div className="text-gray-400 italic text-center p-4">
-                          No active nurses available
-                        </div>
-                      ) : (
-                        <ul className="space-y-2">
-                          {nurses.map(nurse => (
-                            <li 
-                              key={nurse.nurse_id} 
-                              className="flex items-center gap-3 p-3 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
-                              onClick={() => setSelectedNurse(nurse)}
-                            >
-                              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                <User className="w-5 h-5 text-blue-600" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{nurse.name}</p>
-                                <p className="text-sm text-gray-500">ID: {nurse.nurse_id}</p>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      {chatConnectionStatus !== 'connected' && (
-                        <div className="p-2 bg-red-100 text-red-700 rounded mb-2 text-center">
-                          {chatConnectionStatus === 'connecting' && 'Connecting to chat...'}
-                          {chatConnectionStatus === 'disconnected' && 'Not connected to chat server.'}
-                          {chatConnectionStatus === 'error' && `Connection error: ${chatConnectionError || ''}`}
-                        </div>
-                      )}
-                      <div className="flex-1 p-4 overflow-y-auto" style={{ background: '#f7fafc' }}>
-                        {chatMessages.length === 0 ? (
-                          <div className="text-gray-500 text-center mt-10">No messages yet.</div>
-                        ) : (
-                          <ul className="space-y-2">
-                            {chatMessages.map((msg, idx) => (
-                              <li key={idx} className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.from === doctorInfo?.doctorId ? 'bg-blue-100 ml-auto text-right' : 'bg-green-100 mr-auto text-left'}`}>
-                                <div className="text-sm">{msg.content}</div>
-                                <div className="text-xs text-gray-500 mt-1">{msg.timestamp}</div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                      <form className="flex items-center border-t p-3 gap-2" onSubmit={sendChatMessage}>
-                        <input
-                          type="text"
-                          className="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Type a message..."
-                          value={chatInput}
-                          onChange={e => setChatInput(e.target.value)}
-                        />
-                        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">Send</button>
-                      </form>
-                    </>
-                  )}
                 </Dialog.Content>
               </Dialog.Portal>
             </Dialog.Root>

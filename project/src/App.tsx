@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { PatientsList } from './components/PatientsList';
 import { PatientDetails } from './components/PatientDetails';
 import { Navbar } from './components/Navbar';
 import Login from './components/Login';
 import type { Patient, DoctorAuth } from './types';
 import { fetchPatientsByCategory, checkLoggedInStatus, logoutDoctor } from './services/api';
+import { AdminApp } from './admin/AdminApp';
 
-function App() {
+function DoctorApp() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [doctorInfo, setDoctorInfo] = useState<DoctorAuth | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -165,4 +167,12 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/admin/*" element={<AdminApp />} />
+      <Route path="/" element={<DoctorApp />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}

@@ -100,6 +100,7 @@ The frontend will be available at http://localhost:3000
 ## Note
 
 This project is currently set up to connect to a PostgreSQL database with the following credentials:
+application.properties.example:
 - Database: Arogith
 - Username: postgres
 - Password: Venu@2604

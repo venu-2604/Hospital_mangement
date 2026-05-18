@@ -1,13 +1,17 @@
 package com.arogith.api.service.impl;
 
 import com.arogith.api.dto.DoctorLoginDTO;
+import com.arogith.api.dto.DoctorSummaryDTO;
+import com.arogith.api.dto.DoctorCreateDTO;
 import com.arogith.api.model.Doctor;
 import com.arogith.api.repository.DoctorRepository;
 import com.arogith.api.service.DoctorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class DoctorServiceImpl implements DoctorService {
@@ -108,5 +112,46 @@ public class DoctorServiceImpl implements DoctorService {
         }
         System.out.println("Doctor not found for doctorId=" + doctorId);
         return false;
+    }
+
+    @Override
+    public List<DoctorSummaryDTO> findAllDoctors() {
+        return doctorRepository.findAll().stream()
+                .map(this::toSummary)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public DoctorSummaryDTO createDoctor(DoctorCreateDTO createRequest) {
+        Doctor doctor = new Doctor();
+        doctor.setDoctorId(generateDoctorId());
+        doctor.setName(createRequest.getName());
+        doctor.setEmail(createRequest.getEmail());
+        doctor.setPassword(createRequest.getPassword());
+        doctor.setRole(createRequest.getRole() != null ? createRequest.getRole() : "DOCTOR");
+        doctor.setStatus(createRequest.getStatus() != null ? createRequest.getStatus() : "Active");
+        doctor.setDepartment(createRequest.getDepartment());
+
+        Doctor saved = doctorRepository.save(doctor);
+        return toSummary(saved);
+    }
+
+    private DoctorSummaryDTO toSummary(Doctor d) {
+        return new DoctorSummaryDTO(
+                d.getDoctorId(),
+                d.getName(),
+                d.getEmail(),
+                d.getRole(),
+                d.getStatus(),
+                d.getDepartment(),
+                d.getCreatedAt());
+    }
+
+    private String generateDoctorId() {
+        String id;
+        do {
+            id = "D" + System.currentTimeMillis();
+        } while (doctorRepository.existsByDoctorId(id));
+        return id;
     }
 } 
